@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Progress Component</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="main-title">Progress</h1>
+      <div class="progress-section">
+        <div class="left-section">
+          <div id="progressContainer"></div>
+        </div>
+        <div class="controls">
+          <div class="control-group">
+            <input
+              type="number"
+              id="numInput"
+              min="0"
+              max="100"
+              placeholder="0"
+            />
+            <label for="numInput">Value</label>
+          </div>
+          <div class="control-group">
+            <label class="toggle-switch">
+              <input type="checkbox" id="animateToggle" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label for="animateToggle">Animate</label>
+          </div>
+          <div class="control-group">
+            <label class="toggle-switch">
+              <input type="checkbox" id="hideToggle" />
+              <span class="toggle-slider"></span>
+            </label>
+            <label for="hideToggle">Hide</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      class ProgressAPI {
+        constructor(options = {}) {
+          this._value = options.value || 0;
+          this._isAnimated = options.isAnimated || false;
+          this._isHidden = options.isHidden || false;
+
+          this._listeners = {
+            valueChange: [],
+            animationChange: [],
+            visibilityChange: [],
+          };
+        }
+
+        get value() {
+          return this._value;
+        }
+
+        get isAnimated() {
+          return this._isAnimated;
+        }
+
+        get isHidden() {
+          return this._isHidden;
+        }
+
+        setValue(value) {
+          const newValue = Math.max(0, Math.min(100, value));
+          if (this._value !== newValue) {
+            this._value = newValue;
+            this._listeners.valueChange.forEach((callback) => {
+              callback(newValue, this);
+            });
+          }
+          return this;
+        }
+
+        setAnimated(isAnimated) {
+          if (this._isAnimated !== isAnimated) {
+            this._isAnimated = isAnimated;
+            this._listeners.animationChange.forEach((callback) => {
+              callback(isAnimated, this);
+            });
+          }
+          return this;
+        }
+
+        setHidden(isHidden) {
+          if (this._isHidden !== isHidden) {
+            this._isHidden = isHidden;
+            this._listeners.visibilityChange.forEach((callback) => {
+              callback(isHidden, this);
+            });
+          }
+          return this;
+        }
+
+        onValueChange(callback) {
+          this._listeners.valueChange.push(callback);
+          return this;
+        }
+
+        onAnimationChange(callback) {
+          this._listeners.animationChange.push(callback);
+          return this;
+        }
+
+        onVisibilityChange(callback) {
+          this._listeners.visibilityChange.push(callback);
+          return this;
+        }
+      }
+
+      class ProgressUI {
+        constructor(container, progressAPI) {
+          this.container = container;
+          this.api = progressAPI;
+          this.init();
+          this.bindAPIEvents();
+        }
+
+        init() {
+          this.container.innerHTML = `
+            <div class="circular-progress">
+              <div class="circular-bg"></div>
+              <div class="circular-fill"></div>
+            </div>
+          `;
+
+          this.progressFill = this.container.querySelector(".circular-fill");
+          this.progressContainer =
+            this.container.querySelector(".circular-progress");
+
+          this.renderValue(this.api.value);
+          this.renderAnimation(this.api.isAnimated);
+          this.renderVisibility(this.api.isHidden);
+        }
+
+        bindAPIEvents() {
+          this.api
+            .onValueChange((value) => this.renderValue(value))
+            .onAnimationChange((isAnimated) => this.renderAnimation(isAnimated))
+            .onVisibilityChange((isHidden) => this.renderVisibility(isHidden));
+        }
+
+        renderValue(value) {
+          this.progressFill.style.setProperty(
+            "--progress-degrees",
+            `${(value / 100) * 361}deg`
+          );
+
+          if (value > 0) {
+            this.progressFill.classList.add("has-progress");
+          } else {
+            this.progressFill.classList.remove("has-progress");
+          }
+        }
+
+        renderAnimation(isAnimated) {
+          if (isAnimated) {
+            this.progressContainer.classList.add("animated");
+          } else {
+            this.progressContainer.classList.remove("animated");
+          }
+        }
+
+        renderVisibility(isHidden) {
+          if (isHidden) {
+            this.container.classList.add("hidden");
+          } else {
+            this.container.classList.remove("hidden");
+          }
+        }
+      }
+
+      function validateValue(value) {
+        if (value === "") {
+          return 0;
+        }
+        return parseInt(value) || 0;
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const progressContainer = document.getElementById("progressContainer");
+        const numInput = document.getElementById("numInput");
+        const animateToggle = document.getElementById("animateToggle");
+        const hideToggle = document.getElementById("hideToggle");
+
+        const progressAPI = new ProgressAPI({
+          value: 0,
+          isAnimated: false,
+          isHidden: false,
+        });
+
+        const progressUI = new ProgressUI(progressContainer, progressAPI);
+
+        numInput.addEventListener("input", function () {
+          let value = validateValue(this.value);
+          progressAPI.setValue(value);
+          this.value = value === 0 ? "" : value;
+        });
+
+        numInput.addEventListener("keypress", function (e) {
+          if (!/[0-9]/.test(e.key)) {
+            e.preventDefault();
+            return;
+          }
+
+          const currentValue = this.value;
+          const newValue = currentValue + e.key;
+          const numValue = parseInt(newValue);
+
+          if (numValue > 100) {
+            e.preventDefault();
+          }
+        });
+
+        numInput.addEventListener("paste", function (e) {
+          e.preventDefault();
+          const pastedText = (e.clipboardData || window.clipboardData).getData(
+            "text"
+          );
+          const numValue = parseInt(pastedText);
+
+          if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
+            this.value = numValue;
+            progressAPI.setValue(numValue);
+          }
+        });
+
+        animateToggle.addEventListener("change", function () {
+          progressAPI.setAnimated(this.checked);
+        });
+
+        hideToggle.addEventListener("change", function () {
+          progressAPI.setHidden(this.checked);
+        });
+
+        progressAPI.setValue(0);
+        numInput.placeholder = "0";
+      });
+    </script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      .container {
+        margin: 0 auto;
+        background: #fff;
+        padding: 10px;
+      }
+
+      .main-title {
+        color: #333;
+        font-weight: 400;
+      }
+
+      .progress-section {
+        display: flex;
+        flex-direction: row;
+        gap: 100px;
+      }
+
+      .circular-progress,
+      .circular-bg,
+      .circular-fill {
+        border-radius: 50%;
+      }
+
+      .circular-progress {
+        width: 150px;
+        height: 150px;
+        position: relative;
+        margin: 20px auto 40px;
+      }
+
+      .circular-bg {
+        width: 100%;
+        height: 100%;
+        border: 12px solid #f0f0f0;
+        position: absolute;
+      }
+
+      .circular-fill {
+        width: 100%;
+        height: 100%;
+        border: 12px solid transparent;
+        position: absolute;
+        background: conic-gradient(from 0deg, #f0f0f0 0deg, #f0f0f0 360deg)
+          border-box;
+        mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+        mask-composite: exclude;
+        transition: background 0.3s ease;
+      }
+
+      .circular-fill.has-progress {
+        background: conic-gradient(
+            from 0deg,
+            #2b55ff 0deg,
+            #2b55ff var(--progress-degrees, 0deg),
+            #f0f0f0 var(--progress-degrees, 0deg),
+            #f0f0f0 360deg
+          )
+          border-box;
+      }
+
+      @keyframes rotate {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .circular-progress.animated {
+        animation: rotate 2s linear infinite;
+      }
+
+      .controls {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 20px;
+      }
+
+      .control-group {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .control-group label {
+        font-weight: 600;
+        color: #333;
+        font-size: 18px;
+      }
+
+      .control-group input[type="number"] {
+        padding: 5px 10px;
+        border: 2px solid #000000;
+        border-radius: 20px;
+        font-size: 18px;
+        width: 60px;
+        text-align: center;
+        font-weight: bold;
+        background-color: white;
+      }
+
+      .control-group input[type="number"]::placeholder {
+        color: #999;
+      }
+
+      .control-group input[type="number"]:focus {
+        outline: none;
+        border-color: #2b55ff;
+      }
+
+      .control-group input[type="number"]::-webkit-outer-spin-button,
+      .control-group input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 60px;
+        height: 40px;
+      }
+
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.4s;
+        border-radius: 20px;
+      }
+
+      .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 30px;
+        width: 30px;
+        left: 4px;
+        bottom: 6px;
+        background-color: white;
+        transition: 0.4s;
+        border-radius: 50%;
+      }
+
+      input:checked + .toggle-slider {
+        background-color: #2b55ff;
+      }
+
+      input:checked + .toggle-slider:before {
+        transform: translateX(20px);
+      }
+
+      #progressContainer.hidden {
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+      }
+
+      #progressContainer:not(.hidden) {
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+      }
+
+      @media (max-width: 568px) {
+        .progress-section {
+          flex-direction: column;
+          align-items: center;
+          gap: 25px;
+        }
+      }
+    </style>
+  </body>
+</html>
